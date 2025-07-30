@@ -253,7 +253,7 @@ def main():
     parser = OptionParser(usage=usage)
 
     #parser.add_option('-o', '--options', dest='some_option', default='yo', help="Place holder for a real option", type='str')
-    parser.add_option('-p', '--port', dest='port', default=8007, help="Listen on this port", type='int')
+    parser.add_option('-p', '--port', dest='port', default=8008, help="Listen on this port", type='int')
     parser.add_option('-d', '--debug', dest='debug', default=False, help="Run in debug mode", action='store_true')
     parser.add_option('-o', '--host', dest='host', default='127.0.0.1', help='The host address', type='str')
     parser.add_option('-s', '--static', dest='static', default=False, action='store_true', help='Also serve static files.')
