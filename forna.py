@@ -9,6 +9,7 @@ __version__ = "0.1"
 __maintainer__ = "Peter Kerpedjiev"
 __email__ = "pkerp@tbi.univie.ac.at"
 
+
 import forgi.graph.bulge_graph as fgb
 import forgi.threedee.utilities.pdb as ftup
 import forgi.threedee.model.coarse_grain as ftmc
@@ -29,49 +30,74 @@ import uuid
 import sys
 from optparse import OptionParser
 
-
 def remove_pseudoknots(bg):
     """
-    Remove all pseudoknots from the structure and return a list
-    of tuples indicate the nucleotide numbers which were in the
-    pseudoknots.
+    Remove all pseudoknots from the structure using the modern forgi API.
+    This function identifies all basepairs involved in pseudoknots, determines
+    which stems they belong to, and then dissolves those stems.
     
     @param bg: The BulgeGraph structure
+    @return: A list of base pair tuples that were removed.
     """
-    # store which base pairs we've dissolved
-    dissolved_bp = []
-    dissolved = True
-    while dissolved:
-        dissolved = False
-        # keep iterating as long as we've dissolved a stem
-        for d in bg.mloop_iterator():
-            if bg.is_node_pseudoknot(d):
-                # does this multiloop lead to a pseudoknot?
-                # if so, one of the stems it connects needs to be unravelled
-                conn = bg.connections(d)
-                conn_len = [(bg.stem_length(c), c) for c in conn]
-                conn_len.sort()
-                to_dissolve = conn_len[0][1]
+    # Use the newly discovered method to get all basepairs in pseudoknots.
+    # This is an attribute, not a method, so no parentheses are needed.
+    pk_bps = bg.pseudoknotted_basepairs()
+    
+    # A set to store the unique names of the stems that need to be dissolved.
+    stems_to_dissolve = set()
 
-                dissolved_bp += list(bg.stem_bp_iterator(to_dissolve))
-                bg.dissolve_stem(conn_len[0][1])
-                dissolved = True
-                break
+    # For each base in a pseudoknotted pair, find which stem it belongs to.
+    for res1, res2 in pk_bps:
+        # get_node_from_residue_num will return the define name (e.g., 's1', 'h1').
+        node1 = bg.get_node_from_residue_num(res1)
+        if node1.startswith('s'):
+            stems_to_dissolve.add(node1)
+            
+        node2 = bg.get_node_from_residue_num(res2)
+        if node2.startswith('s'):
+            stems_to_dissolve.add(node2)
+
+    dissolved_bp = []
+    # Now, iterate over the unique stems we found and dissolve them.
+    for stem_define in stems_to_dissolve:
+        # Before dissolving, get the list of basepairs in this stem
+        # to return them, matching the original function's behavior.
+        try:
+            dissolved_bp.extend(list(bg.stem_bp_iterator(stem_define)))
+            bg.dissolve_stem(stem_define)
+        except KeyError:
+            # This can happen if a stem is part of a multistem junction
+            # and dissolving one stem removes another from the graph's defines.
+            # It's safe to ignore in this context.
+            pass
 
     return dissolved_bp
 
 def fasta_to_positions(fasta_text):
-    bg = fgb.BulgeGraph()
-    bg.from_fasta(fasta_text)
+    """
+    Calculates the 2D layout coordinates for a structure in FASTA format.
+    This version is updated for the modern forgi API.
+    """
+    # STEP 1: Manually parse the sequence and structure from the input text.
+    lines = fasta_text.strip().split('\n')
+    header = lines[0]
+    seq = lines[1]
+    struct_string = lines[2]
+
+    # STEP 2: Use the correct class method to create the BulgeGraph directly
+    # from the sequence and the dot-bracket string.
+    bg = fgb.BulgeGraph.from_dotbracket(struct_string, seq=seq)
+    
+    # STEP 3: The rest of the original function's logic can now proceed correctly.
     bp_string = bg.to_dotbracket_string()
 
-    print >>sys.stderr, 'bp_string', bp_string;
+    print('bp_string', bp_string, file=sys.stderr)
     RNA.cvar.rna_plot_type = 1
     coords = RNA.get_xy_coordinates(bp_string)
     xs = np.array([coords.get(i).X for i in range(len(bp_string))])
     ys = np.array([coords.get(i).Y for i in range(len(bp_string))])
 
-    return zip(xs,ys)
+    return list(zip(xs,ys))
 
 def bg_to_json(bg, circular=False, xs = None, ys = None, uids=None):
     """
@@ -86,8 +112,7 @@ def bg_to_json(bg, circular=False, xs = None, ys = None, uids=None):
     scr_height = 600.
 
     # pseudoknot_pairs = []
-    pseudoknot_pairs = bg.remove_pseudoknots()
-
+    pseudoknot_pairs = remove_pseudoknots(bg)
     # the X and Y coordinates of each nucleotide as returned by RNAplot
     bp_string = bg.to_dotbracket_string()
 
@@ -125,7 +150,7 @@ def bg_to_json(bg, circular=False, xs = None, ys = None, uids=None):
         # create the nodes with initial positions
         # the  node_name comes from the forgi representation
         node_name = bg.get_node_from_residue_num(i + 1)
-        node = {"group": 1, "elem": node_name, "elem_type": node_name[0], "name": bg.seq[i], "id": i + 1,
+        node = {"group": 1, "elem": node_name, "elem_type": node_name[0], "name": bg.seq[i+1], "id": i + 1,
                 "x": x, "y": y, "px": x, "py": y, "color": colors[node_name[0]],
                 "uid": uid,
                 "node_type": "nucleotide", 'struct_name': bg.name}
@@ -153,10 +178,10 @@ def bg_to_json(bg, circular=False, xs = None, ys = None, uids=None):
             if len(xs) <= bg.seq_length:
                 x = xs[i]
                 y = ys[i]
-                print >>sys.stderr, "here1"
+                print("here1", file=sys.stderr)
             else:
                 # xs and ys have been passed in because the molecule is being updated
-                print >>sys.stderr, "here", node_id
+                print("here", node_id, file=sys.stderr)
                 x = xs[node_id]
                 y = ys[node_id]
 
@@ -191,9 +216,9 @@ def bg_to_json(bg, circular=False, xs = None, ys = None, uids=None):
 
         # create a pseudo node for each of the loops
         struct["nodes"] += [{"group": 1, "name": "", "id": node_id,
-                             "x": x_pos, "y": y_pos, "px": x_pos, "py": y_pos,
-                             'elem_type':'pseudo', 'uid' : uuid.uuid4().hex,
-                             "color": colors['x'], 'node_type': 'pseudo', 'struct_name': bg.name}]
+                            "x": x_pos, "y": y_pos, "px": x_pos, "py": y_pos,
+                            'elem_type':'pseudo', 'uid' : uuid.uuid4().hex,
+                            "color": colors['x'], 'node_type': 'pseudo', 'struct_name': bg.name}]
 
         # some geometric calculations for deciding how long to make
         # the links between alternating nodes
@@ -208,10 +233,12 @@ def bg_to_json(bg, circular=False, xs = None, ys = None, uids=None):
             # link nodes to the center
             struct["links"] += [{"source": node_id, "target": rn - 1, "value": width, "link_type": "fake"}]
 
-        for j in range(0, (num_residues + 1) / 2):
+        # THIS IS THE FIRST FIX (using //)
+        for j in range(0, (num_residues + 1) // 2):
             # link nodes across the loop
             fri = j
-            tri = (j + num_residues / 2)
+            # THIS IS THE SECOND FIX (using //)
+            tri = (j + num_residues // 2)
             struct["links"] += [
                 {"source": res_list[fri] - 1, "target": res_list[tri] - 1, "value": width * 2, "link_type": "fake"}]
 
@@ -250,7 +277,15 @@ def bg_to_json(bg, circular=False, xs = None, ys = None, uids=None):
 
     num_nodes = len(struct["nodes"])
     counter = 0
-    loops, residue_lists = bg.find_multiloop_loops()
+    # STEP 1: Use the new method to find all the multiloops.
+    loops = bg.find_mlonly_multiloops()
+    
+    # STEP 2: For each loop found, get its corresponding list of nucleotides.
+    residue_lists = []
+    for loop in loops:
+        residues = bg.get_multiloop_nucleotides(loop)
+        residue_lists.append(residues)
+        
     for loop, residue_list in zip(loops, residue_lists):
         loop_elems = [d for d in loop if d[0] == 'm']
 
@@ -343,8 +378,20 @@ def fasta_to_json(fasta_text, circular=False):
 
     @param fasta_text: The fasta string.
     """
-    bg = fgb.BulgeGraph()
-    bg.from_fasta(fasta_text)
+    # STEP 1: Manually parse the sequence and structure from the input text.
+    lines = fasta_text.strip().split('\n')
+    header = lines[0]
+    seq = lines[1]
+    struct_string = lines[2]  # The raw dot-bracket string
+
+    # STEP 2: Use the correct class method to create the BulgeGraph directly
+    # from the sequence and the dot-bracket string.
+    bg = fgb.BulgeGraph.from_dotbracket(struct_string, seq=seq)
+
+    # Set the graph's name from the header for consistency.
+    bg.name = header[1:].strip() if header.startswith('>') else header.strip()
+
+    # STEP 3: Pass the fully-formed bg object to the main json-creation function.
     return bg_to_json(bg, circular=circular)
 
 
@@ -370,7 +417,7 @@ def parse_ranges(range_text):
                 raise Exception('Invalid range')
 
             try:
-                (f,t) = map(int, single_range.split('-'))
+                (f,t) = list(map(int, single_range.split('-')))
             except ValueError:
                 raise Exception('Range components need to be integers')
         else:
@@ -575,7 +622,7 @@ def json_to_fasta(rna_json_str):
             pair_list[frozenset(nodes_to_trees[from_node])] += [(int(to_node['id']),
                                                      int(from_node['id']))]
         else:
-            print >>sys.stderr, "Different trees"
+            print("Different trees", file=sys.stderr)
             different_tree_links += [((from_node['x'], from_node['y']),
                                       (to_node['x'], to_node['y']))]
 
@@ -585,7 +632,7 @@ def json_to_fasta(rna_json_str):
             node_list[frozenset(nodes_to_trees[node])] += [(node['id'], node['name'], node['x'], node['y'], node['struct_name'], node['uid'])]
 
         if node['node_type'] == 'label':
-            print >>sys.stderr, "adding label"
+            print("adding label", file=sys.stderr)
             label_list[frozenset(nodes_to_trees[node])] += [(node['x'], node['y'])]
 
     all_fastas = []
@@ -593,7 +640,7 @@ def json_to_fasta(rna_json_str):
     all_ys = []
     all_uids = []
 
-    for key in node_list.keys():
+    for key in list(node_list.keys()):
         pair_table = fus.tuples_to_pairtable(pair_list[key], len(node_list[key]))
         dotbracket = fus.pairtable_to_dotbracket(pair_table)
 
@@ -663,11 +710,11 @@ def main():
     else:
         fname, fext = op.splitext(args[0])
         if fext == '.cg' or fext == '.bg':
-            print >> sys.stderr, "Detected BulgeGraph"
+            print("Detected BulgeGraph", file=sys.stderr)
             bg = fgb.BulgeGraph(args[0])
             struct = bg_to_json(bg)
         else:
-            print >> sys.stderr, "Detected fasta"
+            print("Detected fasta", file=sys.stderr)
             with open(args[0], 'r') as f:
                 text = f.read()
 
@@ -678,7 +725,7 @@ def main():
             colors = json.loads(f)
             struct = add_colors_to_graph(struct, colors)
 
-    print json.dumps(struct, sort_keys=True, indent=4, separators=(',', ': '))
+    print((json.dumps(struct, sort_keys=True, indent=4, separators=(',', ': '))))
 
 
 def pdb_to_json(text, name, parser=None):
@@ -713,7 +760,7 @@ def pdb_to_json(text, name, parser=None):
         for chain in chains:
             # create a graph json for each structure in the pdb file
             if ftup.is_protein(chain):
-                print >>sys.stderr, "protein", chain
+                print("protein", chain, file=sys.stderr)
                 proteins.add(chain.id)
                 # process protein
                 molecules += [{"type": "protein",
@@ -725,7 +772,7 @@ def pdb_to_json(text, name, parser=None):
 
                 pass
             elif ftup.is_rna(chain):
-                print >>sys.stderr, "rna", chain
+                print("rna", chain, file=sys.stderr)
                 rnas.add(chain.id)
                 # process RNA molecules (hopefully)
                 cg = ftmc.from_pdb(fname, chain_id=chain.id, 
@@ -800,4 +847,5 @@ def pdb_to_json(text, name, parser=None):
 
 if __name__ == '__main__':
     main()
+
 
