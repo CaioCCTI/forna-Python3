@@ -1,4 +1,4 @@
-#!/usr/bin/python
+ #!/usr/bin/python
 
 """forna_server.py: A server for converting RNA secondary structures to force-directed graphs
    and doing something more."""
@@ -11,7 +11,7 @@ __maintainer__  = "Stefan Hammer"
 __email__       = "jango@tbi.univie.ac.at"  
 
 from flask import Flask, request, abort
-
+from whitenoise import WhiteNoise
 import Bio.PDB as bpdb
 import forna
 import json
@@ -246,13 +246,37 @@ def create_app(static):
 
     return app
 
+# Get the absolute path of the directory where this script is located
+# This makes the script location-independent.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_ROOT = os.path.join(BASE_DIR, 'htdocs')
+
+# Initialize the database
+fdb.init()
+
+# Create the app instance for Gunicorn
+app = create_app(static=False)
+
+# ----> ADD THIS BLOCK <----
+# Define the rule for the root URL.
+# This tells Flask to serve 'index.html' when a user visits '/'.
+@app.route('/')
+def root():
+    return app.send_static_file('index.html')
+# -------------------------
+
+# Configure WhiteNoise with the absolute path
+if not app.debug:
+    app.wsgi_app = WhiteNoise(app.wsgi_app, root=STATIC_ROOT)
+
+# The main function is now ONLY for running the development server.
 def main():
     usage = """
     python forna_server.py"""
-    num_args = 0
-    parser = OptionParser(usage=usage)
 
-    #parser.add_option('-o', '--options', dest='some_option', default='yo', help="Place holder for a real option", type='str')
+    num_args = 0
+
+    parser = OptionParser(usage=usage)
     parser.add_option('-p', '--port', dest='port', default=8008, help="Listen on this port", type='int')
     parser.add_option('-d', '--debug', dest='debug', default=False, help="Run in debug mode", action='store_true')
     parser.add_option('-o', '--host', dest='host', default='127.0.0.1', help='The host address', type='str')
@@ -266,13 +290,18 @@ def main():
         sys.exit(1)
 
     import logging
-    logging.basicConfig(filename=options.log_file,level=logging.INFO, 
+    logging.basicConfig(filename=options.log_file,level=logging.INFO,
                         format='%(asctime)s %(levelname)s: %(message)s '
                         '[in %(pathname)s:%(funcName)s:%(lineno)d]')
-    fdb.init()
-    app = create_app(options.static)
-    app.run(host=options.host, debug=options.debug, port=options.port)
+
+    # Create a separate app for development if static files are needed
+    dev_app = create_app(static=options.static)
+
+    # For development, you might want WhiteNoise too.
+    # If so, you could add it here for the dev_app instance.
+    # Or rely on Flask's built-in static serving which is enabled by static=True.
+    dev_app.run(host=options.host, debug=options.debug, port=options.port)
+
 
 if __name__ == '__main__':
     main()
-
