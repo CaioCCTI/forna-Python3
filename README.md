@@ -1,3 +1,9 @@
+## Gunicorn Run Command ##
+
+```shell
+gunicorn forna_server:app --workers 4 --bind 0.0.0.0:8008 --max-requests 100
+```
+
 ## RNA Secondary Structure Visualization Using a Force Directed Graph Layout ##
 
 <div style="float: right;">
