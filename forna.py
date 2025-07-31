@@ -197,6 +197,12 @@ def bg_to_json(bg, circular=False, xs = None, ys = None, uids=None):
     num_nodes = len(struct["nodes"])
 
     def create_loop_node(ds, res_list, node_id):
+    
+        num_residues = len(loop_elems)
+        if num_residues == 0:
+                return
+    
+    	
         """
         Create a pseudo-node in the middle of each loop. This node
         will be the center of the circular arrangement of the loop
