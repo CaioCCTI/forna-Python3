@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>forna</title>
+<meta content="text/html; charset=utf-8" http-equiv="Content-type"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="RNA Secondary Structure Visualization Using a Force Directed Graph Layout" name="description"/>
+<meta content="RNA, secundary structure, visualization, force directed graph, plot, svg" name="keywords"/>
+<meta content="Stefan Hammer" name="author"/>
+<meta content="Peter Kerpedjiev" name="author"/>
+<link href="img/favicon-192x192.png" rel="icon" sizes="192x192" type="image/png"/>
+<link href="img/favicon-32x32.png" rel="icon" sizes="32x32" type="image/png"/>
+<link href="img/favicon-16x16.png" rel="icon" sizes="16x16" type="image/png"/>
+<!-- CSS -->
+<!-- Bootstrap: http://getbootstrap.com/ -->
+<link href="css/bootstrap.min.css" rel="stylesheet" type="text/css"/>
+<link href="css/bootstrap-switch.css" rel="stylesheet" type="text/css"/>
+<link href="css/bootstrap-slider.min.css" rel="stylesheet" type="text/css"/>
+<!-- custom CSS -->
+<link href="css/fornac.css" rel="stylesheet" type="text/css"/>
+<link href="css/interface.css" rel="stylesheet" type="text/css"/>
+<!-- Java Script -->
+<!-- jQuery -->
+<script src="js/jquery.js" type="text/javascript"></script>
+<!-- Knockout: http://knockoutjs.com/downloads/index.html -->
+<script src="js/knockout-3.2.0.js" type="text/javascript"></script>
+<script src="js/knockout-bindings.js" type="text/javascript"></script>
+<!-- Bootstrap Javascript Plugins: http://getbootstrap.com/ -->
+<script src="js/bootstrap.min.js" type="text/javascript"></script>
+<!-- bootstrap on off switch and slider -->
+<script src="js/bootstrap-switch.js" type="text/javascript"></script>
+<script src="js/bootstrap-slider.min.js" type="text/javascript"></script>
+<!-- D3 -->
+<script src="js/d3.js" type="text/javascript"></script>
+<!-- File Saver https://github.com/eligrey/FileSaver.js -->
+<script src="js/FileSaver.min.js" type="text/javascript"></script>
+<!-- saveSvgAsPng.js -->
+<script src="js/saveSvgAsPng.js" type="text/javascript"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@8.x/dist/pixi.min.js"></script></head>
+<body>
+<div id="main">
+<!-- 'Add new molecule' modal -->
+<div class="modal fade" id="add"> <!-- data-bind="showModal: loaded"-->
+<div class="modal-dialog">
+<div class="modal-content">
+<div class="modal-header">
+<button class="close" data-dismiss="modal" type="button"><span aria-hidden="true">×</span><span class="sr-only">Close</span></button>
+<h4 class="modal-title">Add RNA Molecule</h4>
+</div>
+<div class="modal-body">
+<form role="form">
+<div class="form-group">
+<label for="Input">Sequence and Structure</label>
+<div class="inner-addon right-addon">
+<span aria-hidden="true" class="glyphicon glyphicon-remove inner-item inner-item-button" data-bind="click: function() { input(''); }"></span>
+<textarea autofocus="" class="form-control" data-bind="value: input" id="Input" placeholder="" required="" rows="2" type="text"></textarea>
+<span class="inner-item inner-item-bottom" data-bind="text: cursorPosition"></span>
+</div>
+</div><br/>
+<div class="form-group">
+<label for="inputFastaFile">And/Or load from File</label>
+<div class="inner-addon left-addon" style="max-width:100%; overflow-x: hidden;">
+<span aria-hidden="true" class="glyphicon glyphicon-remove inner-item inner-item-button" data-bind="click: function() { $('#inputFastaFile').val(''); inputFile(null); }, visible: inputFile"></span>
+<input data-bind="event: { change: function() { inputFile($element.files[0]) }}" id="inputFastaFile" type="file"/>
+<p class="help-block">Instead or in addition you may select a Fasta file.</p>
+</div>
+</div>
+<div class="alert alert-danger" data-bind="visible: inputError().length &gt; 0, html: inputError" id="inputError" role="alert"> </div>
+</form>
+</div>
+<div class="modal-footer">
+<button class="btn btn-default" data-bind="click: cancelAddMolecule" data-dismiss="modal" type="button">Cancel</button>
+<button class="btn btn-primary" data-bind="click: submit" data-loading-text="Loading..." id="Submit" type="submit">Submit</button>
+</div>
+</div><!-- /.modal-content -->
+</div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+<!-- 'Add from API modal -->
+<div class="modal fade" id="addAPI"> <!-- data-bind="showModal: loaded"-->
+<div class="modal-dialog">
+<div class="modal-content">
+<div class="modal-header">
+<button class="close" data-dismiss="modal" type="button"><span aria-hidden="true">×</span><span class="sr-only">Close</span></button>
+<h4 class="modal-title">Add Molecule from API</h4>
+</div>
+<div class="modal-body">
+<form role="form">
+<span aria-hidden="true" class="glyphicon glyphicon-refresh glyphicon-refresh-animate" data-bind="visible: inputError().length === 0"></span>
+<span data-bind="visible: inputError().length === 0">  Please wait while we are
+            getting your molecule...</span>
+<div class="alert alert-danger" data-bind="visible: inputError().length &gt; 0, html: inputError" id="inputError" role="alert"> </div>
+</form>
+</div>
+<div class="modal-footer">
+<button class="btn btn-default" data-bind="click: done" data-dismiss="modal" type="button">Cancel</button>
+</div>
+</div><!-- /.modal-content -->
+</div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+<!-- 'Add new JSON molecule' modal -->
+<div class="modal fade" id="addJSON"> <!-- data-bind="showModal: loaded"-->
+<div class="modal-dialog">
+<div class="modal-content">
+<div class="modal-header">
+<button class="close" data-dismiss="modal" type="button"><span aria-hidden="true">×</span><span class="sr-only">Close</span></button>
+<h4 class="modal-title">Add Molecule from JSON</h4>
+</div>
+<div class="modal-body">
+<form role="form">
+<div class="form-group">
+<label for="JSONInput">JSON Text</label>
+<div class="inner-addon right-addon">
+<span aria-hidden="true" class="glyphicon glyphicon-remove inner-item inner-item-button" data-bind="click: function() { input(''); }"></span>
+<textarea autofocus="" class="form-control" data-bind="value: input" id="JSONInput" placeholder="" required="" rows="2" type="text"></textarea>
+<span class="inner-item inner-item-bottom" data-bind="text: cursorPosition"></span>
+</div>
+</div><br/>
+<div class="form-group">
+<label for="inputJSONFile">And/Or load from File</label>
+<div class="inner-addon left-addon" style="max-width:100%; overflow-x: hidden;">
+<span aria-hidden="true" class="glyphicon glyphicon-remove inner-item inner-item-button" data-bind="click: function() { $('#inputJSONFile').val(''); inputFile(null); }, visible: inputFile"></span>
+<input data-bind="event: { change: function() { inputFile($element.files[0]) }}" id="inputJSONFile" type="file"/>
+<p class="help-block">Instead or in addition you may select a JSON file.</p>
+</div>
+</div>
+<div class="alert alert-danger" data-bind="visible: inputError().length &gt; 0, html: inputError" id="inputError" role="alert"> </div>
+</form>
+</div>
+<div class="modal-footer">
+<button class="btn btn-default" data-bind="click: cancelAddJSON" data-dismiss="modal" type="button">Cancel</button>
+<button class="btn btn-primary" data-bind="click: submit" data-loading-text="Loading..." id="SubmitJSON" type="submit">Submit</button>
+</div>
+</div><!-- /.modal-content -->
+</div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+<!-- 'Add PDB molecule' modal -->
+<div class="modal fade" id="addPDB"> <!-- data-bind="showModal: loaded"-->
+<div class="modal-dialog">
+<div class="modal-content">
+<div class="modal-header">
+<button class="close" data-dismiss="modal" type="button"><span aria-hidden="true">×</span><span class="sr-only">Close</span></button>
+<h4 class="modal-title">Add PDB File</h4>
+</div>
+<div class="modal-body">
+<form role="form">
+<div class="form-group">
+<label for="inputPDBFile">File Input</label>
+<div class="inner-addon left-addon" style="max-width:100%; overflow-x: hidden;">
+<span aria-hidden="true" class="glyphicon glyphicon-remove inner-item inner-item-button" data-bind="click: function() { $('#inputPDBFile').val(''); inputFile(null); }, visible: inputFile"></span>
+<input data-bind="event: { change: function() { inputFile($element.files[0]); parsePDB(); }}" id="inputPDBFile" type="file"/>
+<p class="help-block">Please select a PDB file to extract the secondary structure from.</p>
+<div data-bind="visible: inputFile() !== null" id="compoundList">
+<div aria-label="..." class="btn-group btn-group-sm pull-right" data-bind="visible: compounds().length &gt; 0" role="group">
+<button class="btn btn-default" data-bind="click: selectAll(true)" type="button">All</button>
+<button class="btn btn-default" data-bind="click: selectAll(false)" type="button">None</button>
+</div>
+<label for="compoundList">Select compounds to display:</label>
+<span aria-hidden="true" class="glyphicon glyphicon-refresh glyphicon-refresh-animate" data-bind="visible: compounds().length === 0"></span>
+<ul class="list-group" data-bind="foreach: compounds" style="word-wrap: break-word; margin: 16px;">
+<li class="list-group-item" data-bind="click: $parent.selectItem, css: { active: selected }">
+<h4 class="list-group-item-heading" data-bind="text: name"></h4>
+                                Fragment: <span data-bind="text: fragment"></span><br/>
+                                Chains: <span data-bind="text: chains"></span>
+</li>
+</ul>
+<div aria-label="..." class="btn-group btn-group-sm pull-right" data-bind="visible: compounds().length &gt; 0" role="group">
+<button class="btn btn-default" data-bind="click: selectAll(true)" type="button">All</button>
+<button class="btn btn-default" data-bind="click: selectAll(false)" type="button">None</button>
+</div>
+</div>
+</div>
+</div>
+<div class="alert alert-danger" data-bind="visible: inputError().length &gt; 0, html: inputError" id="inputError" role="alert"> </div>
+</form>
+<!-- <progress></progress> -->
+</div>
+<div class="modal-footer">
+<button class="btn btn-default" data-bind="click: cancelAddPDB" data-dismiss="modal" type="button">Cancel</button>
+<button class="btn btn-primary" data-bind="click: submit" data-loading-text="Loading..." id="PDBSubmit" type="submit">Submit</button>
+</div>
+</div><!-- /.modal-content -->
+</div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+<!-- 'Add MMCIF molecule' modal -->
+<div class="modal fade" id="addMMCIF"> <!-- data-bind="showModal: loaded"-->
+<div class="modal-dialog">
+<div class="modal-content">
+<div class="modal-header">
+<button class="close" data-dismiss="modal" type="button"><span aria-hidden="true">×</span><span class="sr-only">Close</span></button>
+<h4 class="modal-title">Add MMCIF File</h4>
+</div>
+<div class="modal-body">
+<form role="form">
+<div class="form-group">
+<label for="Input">File Input</label>
+<div class="inner-addon left-addon" style="max-width:100%; overflow-x: hidden;">
+<span aria-hidden="true" class="glyphicon glyphicon-remove button" data-bind="click: function() { $('#inputMMCIFFile').val(''); inputFile(null); }, visible: inputFile"></span>
+<input data-bind="event: { change: function() { inputFile($element.files[0]) }}" id="inputMMCIFFile" type="file"/>
+<p class="help-block">Please select a MMCIF file to extract the secondary structure from.</p>
+</div>
+</div>
+<div class="alert alert-danger" data-bind="visible: inputError().length &gt; 0, html: inputError" id="inputError" role="alert"> </div>
+</form>
+<!-- <progress></progress> -->
+</div>
+<div class="modal-footer">
+<button class="btn btn-default" data-bind="click: cancelAddMMCIF" data-dismiss="modal" type="button">Cancel</button>
+<button class="btn btn-primary" data-bind="click: submit" data-loading-text="Loading..." id="MMCIFSubmit" type="submit">Submit</button>
+</div>
+</div><!-- /.modal-content -->
+</div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+<!-- 'Custom Colors' modal -->
+<div class="modal fade" id="addColors"> <!-- data-bind="showModal: loaded"-->
+<div class="modal-dialog">
+<div class="modal-content">
+<div class="modal-header">
+<button class="close" data-dismiss="modal" type="button"><span aria-hidden="true">×</span><span class="sr-only">Close</span></button>
+<h4 class="modal-title">Edit Color Scheme</h4>
+</div>
+<div class="modal-body">
+<form role="form">
+<div class="form-group">
+<label for="ColorInput">Color Specifications:</label>
+<textarea autofocus="" class="form-control" data-bind="value: input" id="ColorInput" placeholder="" required="" rows="2" type="text"></textarea>
+</div>
+<div class="alert alert-danger" data-bind="visible: inputError().length &gt; 0, html: inputError" id="inputError" role="alert"> </div>
+</form>
+</div>
+<div class="modal-footer">
+<button class="btn btn-default" data-bind="click: cancelColor" data-dismiss="modal" type="button">Cancel</button>
+<button class="btn btn-primary" data-bind="click: colorSubmit" data-loading-text="Loading..." id="ColorSubmit" type="submit">Submit</button>
+</div>
+</div><!-- /.modal-content -->
+</div><!-- /.modal-dialog -->
+</div><!-- /.modal custom colors -->
+<!-- 'Share' Link modal -->
+<div class="modal fade" id="shareView"> <!-- data-bind="showModal: loaded"-->
+<div class="modal-dialog">
+<div class="modal-content">
+<div class="modal-header">
+<button class="close" data-dismiss="modal" type="button"><span aria-hidden="true">×</span><span class="sr-only">Close</span></button>
+<h4 class="modal-title">Share a Link of your View</h4>
+</div>
+<div class="modal-body" style="min-height: 150px;">
+<form role="form">
+<span aria-hidden="true" class="glyphicon glyphicon-refresh glyphicon-refresh-animate" data-bind="visible: (inputError().length === 0 &amp;&amp; url().length === 0)"></span>
+<span data-bind="visible: (inputError().length === 0 &amp;&amp; url().length === 0)">  We are generating your link...</span>
+<div data-bind="visible: url().length !== 0">
+<label>Using this link you can return to the current state. This link will be valid for at about 6 weeks.</label>
+<div class="input-group input-group-lg">
+<input aria-describedby="url" class="form-control" data-bind="value: url" data-delay='{"show":"100", "hide":"50"}' data-placement="bottom" data-toggle="tooltip" id="shareURL" onclick="this.select();" placeholder="..." readonly="" title="Ctrl + C" type="text"/>
+<span class="input-group-addon glyphicon glyphicon-share-alt" id="url"></span>
+</div>
+</div>
+<div class="alert alert-danger" data-bind="visible: inputError().length &gt; 0, html: inputError" id="inputError" role="alert"> </div>
+</form>
+</div>
+<div class="modal-footer">
+<button class="btn btn-default" data-bind="click: done" data-dismiss="modal" type="button">Done</button>
+</div>
+</div><!-- /.modal-content -->
+</div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+<!-- 'About' modal -->
+<div class="modal fade" id="about">
+<div class="modal-dialog">
+<div class="modal-content">
+<div class="modal-header">
+<button class="close" data-dismiss="modal" type="button"> <span aria-hidden="true">×</span><span class="sr-only">Close</span></button>
+<h4 class="modal-title">About forna</h4>
+</div>
+<div class="modal-body">
+<div style="float: right;">
+<img align="right" alt="forna logo" src="img/favicon-192x192.png" title="forna logo" width="150"/>
+</div>
+<h1>RNA Secondary Structure Visualization Using a Force Directed Graph Layout</h1>
+<h4 id="overview">Overview</h4>
+<p>The <code>forna</code> package provides a web interface for displaying RNA secondary
+          structures using the <a href="https://github.com/mbostock/d3/wiki/Force-Layout">force-directed graph
+          layout</a> provided by the
+          <a href="http://d3js.org/">d3.js visualization library</a>. </p>
+<p>The front end makes use of <a href="http://getbootstrap.com">Bootstrap</a> and
+          <a href="http://knockoutjs.com/">Knockout.js</a> for the user interfact while the back end
+          uses <a href="http://flask.pocoo.org/">Flask</a> to serve the static files and provide a
+          REST API. The RNA structure manipulation and graph construction is created
+          using the python <a href="http://www.tbi.univie.ac.at/~pkerp/forgi/">forgi</a> RNA
+          structure manipulation library and the provided <code>forna.py</code> script. We heavily
+          depend on the python bindings of the <a href="http://www.tbi.univie.ac.at/RNA/">ViennaRNA</a> package.</p>
+<h2 id="usage">Usage</h2>
+<p>Click on <code>Add Molecule</code> to draw a new secondary structure. The input should
+          contain a sequence and a secondary structure in dot-bracket notation:</p>
+<pre><code>GCUUCAUAUAAUCCUAAUGAUAUGGUUUGGGAGUUUCUACCAAGAGCCUUAAACUCUUGAUUAUGAAGUG<br/>((((((((((..((((((.........))))))......).((((((.......))))))..)))))))))</code></pre>
+<p>You can also use the <strong>FASTA</strong> format to add multiple molecule at once. If you do
+          not enter a structure, it will calculate the MFE structure at 37°C for you.</p>
+<p>In the FASTA header you can specify a name and optionally also the number of the first or last nucleotide:
+          <pre><code>&gt;name|start=5|end=60</code></pre></p>
+<p><strong>Zooming</strong> can be accomplished using the mouse wheel.
+          Dragging the canvas leads to <strong>panning</strong>.</p>
+<h3 id="colors">Colors</h3>
+<h4 id="position">Position</h4>
+<p>Color the nucleotides according to their position in the molecule. Lower numbered
+          nucleotides are closer to the 5' end and are colored green. Nucleotides in the middle
+          are colored yellow whereas nucleotides near the 3' end are colored red.</p>
+<h4 id="structure">Structure</h4>
+<p>Color the nucleotides according to the type of structure that they are in:</p>
+<p><strong><font color="lightgreen">Green</font></strong>: Stems (canonical helices) <br/>
+<strong><font color="#ff9896">Red</font></strong>: Multiloops (junctions)<br/>
+<strong><font color="#dbdb8d">Yellow</font></strong>: Interior Loops<br/>
+<strong><font color="lightblue">Blue</font></strong>: Hairpin loops<br/>
+<strong><font color="lightsalmon">Orange</font></strong>: 5' and 3' unpaired region<br/>
+<h4 id="sequence">Sequence</h4>
+<p>Color according to the nucleotide types: </p>
+<p><strong><font color="#dbdb8d">Yellow</font></strong>: Adenine <br/>
+<strong><font color="#98df8a">Green</font></strong>: Cytosine <br/>
+<strong><font color="#ff9896">Blue</font></strong>: Uridine <br/>
+<strong><font color="#aec7e8">Red</font></strong>: Guanine</p>
+<h4 id="custom">Custom</h4>
+<p> Create a custom coloring scheme. The colors for each nucleotide or sets of nucleotide are specified in the 
+          text box that appears when the 'set' button is clicked. The format is simple. Numbers entered interpolated to 
+          colors and mapped to the respective nucleotides (the first number colors the first nucleotide, the second the second, etc...).
+          <pre>
+          0.5 0.6 10 13.4
+</pre>
+         This will color the first four nucleotides such that the first two are lightly colored and the last two are more darkly colored.
+         The scale is interpolated between the lowest and highest value. We currently only use the white-blue color scale, but this will
+         be expanded shortly.
+
+        Coloring specific nucleotides is possible using the following format:
+<pre>
+8:red 10:blue 11:green
+</pre>
+        These directives will color the 8th nucleotide red, the 10th blue and the 11th green. Ranges of colors
+        can also be entered:
+
+        <pre>
+        1-10:green 15-30:red  13,46,101:blue
+        </pre>
+
+        This will color nucleotides 1-10 green and nucleotides 15-30 red and 13,46, and 101 blue.
+
+        <p>Colors can be specified for each molecule individually by preceding them with the
+        molecule's id</p>
+<pre>
+        &gt;molecule1
+        1-10:green 15-30:red  13,46,101:blue
+        &gt;molecule2
+        0.98 .80 0.75
+        </pre>
+<h5>Color ranges and domains</h5>
+        The default color range is white to steelblue. Custom ranges can be specified
+        by entering the following in the custom color screen.
+
+        <pre>
+        &gt;molecule1
+        1-10:green 15-30:red  13,46,101:blue
+        &gt;molecule2
+        range=white:red
+        0.98 .80 0.75
+        </pre>
+
+        Color domains can be specified in a similar manner. The domain defines the values
+        over which the colors are spread:
+
+        <pre>
+        domain=0.5:1.0
+        0.98 .80 0.75
+        </pre>
+<h3>Pseudoknots</h3>
+          Feel free to enter structures with pseudoknots. Here's the format:
+
+        <pre>
+        &gt;1GID
+        AACCGG
+        ((.[[.)).]]
+        </pre>
+
+          Use your imagination!
+
+
+          <h3>Editing the Structure</h3>
+
+          Links can artificially be added by holding down the shift key and
+          dragging from one nucleotide to another. This will form a
+          spring-loaded bond between two nucleotides. This is useful for
+          drawing interacting pairs of structures. Bonds can be deleted by
+          holding down the shift key and clicking on a bond.
+
+          <h3>Centering the view</h3>
+
+          The view can be centered on molecules being displayed by pressing the
+          'c' key or by clicking on the crosshairs button in the lower left
+          hand corner. 
+
+          <h3>Force</h3>
+
+          The force can be turned off by either hitting the space key or by
+          flipping the switch in the lower left hand corner of the screen.
+
+          <h3>Friction / Wobbliness</h3>
+
+          How 'wobbly' a molecule appears can be adjusted by the friction
+          slider in the settings menu just to the right of the colors menu.
+          Lowering the friction (paradoxically) makes the molecule less wobbly
+          and increasing it makes it more so.
+
+          <h3> PDB Files </h3>
+
+          Secondary structure can automatically be extracted from PDB files and displayed. Simply
+          click on the dropdown arrow next to 'Add Molecule' and select 'Add PDB File'. This will
+          import every RNA chain in the PDB file and display its secondary structure. Proteins
+          will be added as nodes with a size proportional to their length. Interactions between
+          separate protein and nucleotide chains are displayed as dashed lines. The secondary
+          structure is extracted using MC-Annotate [1].
+
+          <h2 id="contact">Contact</h2>
+<p>Questions and/or comments can be sent to <a href="mailto:forna@tbi.univie.ac.at">forna@tbi.univie.ac.at</a></p>
+<h4 id="acknowledgement">Acknowledgement</h4>
+<p>This work was funded by the Austrian DK RNA program
+            FG748004, by the Austrian FWF, project "SFB F43 RNA regulation
+            of the transcriptome," and the European Commission under the
+            Environment Theme of the 7th Framework Program for Research
+            and Technological Development (Grant agreement no: 323987).</p>
+<h4 id="citations">Citations</h4>
+           [1] Gendron P, Lemieux S, Major F(2001). Quantitative analysis of nucleic acid three-dimensional structures. J Mol Biol 308:919–936.
+        </p></p></div>
+<div class="modal-footer">
+<button class="btn btn-default" data-dismiss="modal" type="button">Close</button>
+</div>
+</div><!-- /.modal-content -->
+</div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+<!-- Main content starts here! -->
+<!-- the graph goes here -->
+<div class="gallery" id="chart" style=" position:relative;"><div id="gpu-layer" style="position:absolute; inset:0; z-index:1; pointer-events:none; display:none;"></div>
+<div class="menu-top">
+<div class="menu-left">
+<div class="btn-group">
+<button class="btn btn-primary" data-bind="click: showAdd">Add Molecule</button>
+<button aria-expanded="false" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">
+<span class="caret"></span>
+<span class="sr-only">Toggle Dropdown</span>
+</button>
+<ul class="dropdown-menu" role="menu">
+<li role="presentation"><a data-bind="click: showAdd">Add Sequence and Secondary Structure</a></li>
+<li role="presentation"><a data-bind="click: showAddPDB">Add PDB File</a></li>
+<li role="presentation"><a data-bind="click: showAddMMCIF">Add MMCIF File</a></li>
+<li role="presentation"><a data-bind="click: showAddJSON">Add JSON File</a></li>
+</ul>
+</div>
+<div class="btn-group" data-delay='{"show":"800", "hide":"50"}' data-placement="right" data-toggle="tooltip" title="Delete everyting">
+<button class="btn btn-default" data-bind="click: clearGraph">Clear</button>
+</div>
+</div>
+<div class="menu-right">
+<div class="btn-group" data-delay='{"show":"800", "hide":"50"}' data-placement="bottom" data-toggle="tooltip" id="About" title="About">
+<button class="btn btn-default" data-bind="click: showAbout"><span class="glyphicon glyphicon-question-sign"></span></button>
+</div>
+</div>
+</div>
+<div class="menu-bottom">
+<div class="menu-left">
+<div class="btn-group" data-delay='{"show":"800", "hide":"50"}' data-placement="top" data-toggle="tooltip" title="Animation (Key: Space)">
+<input class="bootstrap-switch" data-bind="bootstrapSwitchOn: animation" name="animation-toggle" type="checkbox"/>
+</div>
+<div class="btn-group" data-delay='{"show":"800", "hide":"50"}' data-placement="top" data-toggle="tooltip" title="Center molecules (Key: C)">
+<button class="btn btn-default" data-bind="click: centerMolecules"><span class="glyphicon glyphicon-screenshot"></span></button>
+</div>
+<div class="btn-group dropup">
+<button aria-expanded="false" class="btn btn-default dropdown-toggle" data-toggle="dropdown" type="button">
+            Colors <span class="caret"> </span>
+<span class="sr-only">Toggle Dropdown</span>
+</button>
+<ul class="dropdown-menu menu-form" role="menu">
+<li class="dropdown-header" role="presentation">Color Scheme</li>
+<li data-bind="css: { active: colors() === 'positions' }" role="presentation">
+<label role="menuitem">
+<input data-bind="checked: colors, checkedValue: 'positions'" name="colors" type="radio"/> Positions
+              </label>
+<li>
+<li data-bind="css: { active: colors() === 'structure' }" role="presentation">
+<label role="menuitem">
+<input data-bind="checked: colors, checkedValue: 'structure'" name="colors" type="radio"/> Structure
+              </label>
+</li>
+<li data-bind="css: { active: colors() === 'sequence' }" role="presentation">
+<label role="menuitem">
+<input data-bind="checked: colors, checkedValue: 'sequence'" name="colors" type="radio"/> Sequence
+              </label>
+</li>
+<li data-bind="css: { active: colors() === 'custom' }" role="presentation">
+<label role="menuitem">
+<input data-bind="checked: colors, checkedValue: 'custom', checkedVaue: 'custom'" name="colors" type="radio"/> Custom 
+                <button data-bind="click: showCustomColors, attr: { 'class': colors() === 'custom' ? 'btn btn-xs btn-default' : 'btn btn-xs btn-primary' }" role="menuitem" type="button">Set</button>
+</label>
+</li>
+</li></li></ul>
+</div>
+<div class="btn-group dropup">
+<button aria-expanded="false" class="btn btn-default dropdown-toggle" data-toggle="dropdown" type="button">
+<span class="glyphicon glyphicon-cog"> </span>
+<span class="caret"></span>
+<span class="sr-only">Toggle Dropdown</span>
+</button>
+<ul class="dropdown-menu menu-form" role="menu">
+<li class="dropdown-header" role="presentation">Display Options</li>
+<li data-bind="css: {active: numbering}" role="presentation">
+<label role="menuitem">
+<input data-bind="checked: numbering" type="checkbox"/> Sequence numbering
+                </label>
+</li>
+<li data-bind="css: {active: nodeLabel}" role="presentation">
+<label role="menuitem">
+<input data-bind="checked: nodeLabel" type="checkbox"/> Nucleotide label
+                </label>
+</li>
+<li data-bind="css: {active: nodeOutline}" role="presentation">
+<label role="menuitem">
+<input data-bind="checked: nodeOutline" type="checkbox"/> Nucleotide outline
+                </label>
+</li>
+<li data-bind="css: {active: displayLinks}" role="presentation">
+<label role="menuitem">
+<input data-bind="checked: displayLinks" type="checkbox"/> Links
+                </label>
+</li>
+<li data-bind="css: {active: displayPseudoknotLinks}" role="presentation">
+<label role="menuitem">
+<input data-bind="checked: displayPseudoknotLinks" type="checkbox"/> Pseudoknot Links
+                </label>
+</li>
+<li data-bind="css: {active: displayProteinLinks}" role="presentation">
+<label role="menuitem">
+<input data-bind="checked: displayProteinLinks" type="checkbox"/> Protein Links
+                </label>
+</li>
+<li class="divider" role="presentation"></li>
+<li class="dropdown-header" role="presentation">Force Field Options</li>
+<li class="form-group">
+<label for="pseudoknotStrength" role="menuitem">Pseudoknot strength<br/>
+<input class="slider form-control" data-bind="sliderValue: {value: pseudoknotStrength, min:0, max: 2, step: 0.1}" id="pseudoknotStrength" type="text"/>
+</label>
+</li>
+<li class="form-group">
+<label for="friction" role="menuitem">Force friction<br/>
+<input class="slider form-control" data-bind="sliderValue: {value: friction, min:0, max: 100, step: 1}" id="friction" type="text"/>
+</label>
+<label for="charge" role="menuitem">Node Charge<br/>
+<input class="slider form-control" data-bind="sliderValue: {value: charge, min:-80, max: 0, step: 1}" id="charge" type="text"/>
+</label>
+</li>
+<li class="form-group">
+<label for="friction" role="menuitem">Gravity<br/>
+<input class="slider form-control" data-bind="sliderValue: {value: gravity, min:0, max: 1, step: 0.1}" id="gravity" type="text"/>
+</label>
+</li>
+</ul>
+</div>
+<div class="btn-group" data-delay='{"show":"800", "hide":"50"}' data-placement="top" data-toggle="tooltip" title="Fullscreen">
+<button class="btn btn-default" onclick="toggleFullScreen('main'); return false;"><span class="glyphicon glyphicon-fullscreen"></span></button>
+</div>
+</div>
+<div class="menu-right">
+<div class="btn-group" data-delay='{"show":"800", "hide":"50"}' data-placement="top" data-toggle="tooltip" title="Share Link">
+<button class="btn btn-default" data-bind="click: shareLink"><span class="glyphicon glyphicon-share-alt"></span></button>
+</div>
+<div class="btn-group dropup">
+<button aria-expanded="false" class="btn btn-default dropdown-toggle" data-toggle="dropdown" type="button">
+<span class="glyphicon glyphicon-download-alt"> </span>
+<span class="caret"></span>
+<span class="sr-only">Toggle Dropdown</span>
+</button>
+<ul class="dropdown-menu dropdown-menu-right menu-form" role="menu">
+<!-- Dropdown menu links -->
+<li data-bind="css: {active: background}" role="presentation">
+<label role="menuitem">
+<input data-bind="checked: background" type="checkbox"/> Background
+                  </label>
+</li>
+<li class="divider" role="presentation"></li>
+<li class="dropdown-header" role="presentation">Save as ...</li>
+<li role="presentation"><a data-bind="click: saveSVG" download="rna.svg" role="menuitem">SVG</a></li>
+<li role="presentation"><a data-bind="click: savePNG" download="rna.png" role="menuitem">PNG</a></li>
+<li role="presentation"><a data-bind="click: saveJSON" download="rna.json" role="menuitem">JSON</a></li>
+</ul>
+</div>
+</div>
+</div>
+<!-- fornac javascript -->
+<script src="js/fornac.js" type="text/javascript"></script>
+<!-- interface javascript -->
+<script src="js/interface.js" type="text/javascript"></script>
+</div>
+</div>
+<script>
+(function(){
+  // Minimal, layout-preserving GPU overlay using PixiJS v8
+  let app = null;
+  let layerEl = null;
+  let pointContainer = null;
+  let lastPts = null;
+  let visible = false;
+
+  function el(id){ return document.getElementById(id); }
+
+  function ensureLayer(){
+    if(layerEl) return layerEl;
+    layerEl = el("gpu-layer");
+    if(!layerEl) throw new Error("#gpu-layer não encontrado");
+    return layerEl;
+  }
+
+  async function initPixi(){
+    ensureLayer();
+    if(app) return;
+    app = new PIXI.Application();
+    // Size from parent client rect; overlay will auto-resize via ResizeObserver
+    const rect = layerEl.getBoundingClientRect();
+    const w = Math.max(1, rect.width|0);
+    const h = Math.max(1, rect.height|0);
+    await app.init({ antialias:true, backgroundAlpha: 0, width:w, height:h });
+    layerEl.innerHTML = "";
+    layerEl.appendChild(app.canvas);
+
+    // Resize observer to stay in sync with layout
+    const ro = new ResizeObserver(()=>{
+      const r = layerEl.getBoundingClientRect();
+      const nw = Math.max(1, r.width|0);
+      const nh = Math.max(1, r.height|0);
+      app.renderer.resize(nw, nh);
+      if(lastPts) fitStage(lastPts);
+    });
+    ro.observe(layerEl);
+  }
+
+  function finitePoints(raw){
+    const pts=[]; if(!raw) return pts;
+    for(const p of raw){
+      if(!p) continue;
+      const a = Array.isArray(p) ? p : [p.x, p.y];
+      const x = +a[0], y = +a[1];
+      if(Number.isFinite(x) && Number.isFinite(y)) pts.push([x,y]);
+    }
+    return pts;
+  }
+
+  function shapeToPoints(obj){
+    if(!obj) return [];
+    if(Array.isArray(obj)) return finitePoints(obj);
+    if(Array.isArray(obj.x) && Array.isArray(obj.y)){
+      const n = Math.min(obj.x.length, obj.y.length);
+      const arr = new Array(n);
+      for(let i=0;i<n;i++) arr[i] = [ +obj.x[i], +obj.y[i] ];
+      return finitePoints(arr);
+    }
+    if(obj.data) return shapeToPoints(obj.data);
+    if(Array.isArray(obj.positions)) return finitePoints(obj.positions);
+    if(Array.isArray(obj.pts)) return finitePoints(obj.pts);
+    if(Array.isArray(obj.coords)) return finitePoints(obj.coords);
+    if(typeof obj.x === "number" && typeof obj.y === "number") return finitePoints([obj]);
+    return [];
+  }
+
+  async function fetchPositions({seq, struct=null, chunk_size=3000}){
+    const body = { header:"gpu", seq, chunk_size };
+    if(struct) body.struct = struct;
+    const res = await fetch("/struct_positions", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(body)
+    });
+    const text = await res.text();
+    if(!res.ok) throw new Error("Erro /struct_positions: " + text);
+    let json = null;
+    try{ json = JSON.parse(text); }
+    catch(e){ throw new Error("Resposta não-JSON do servidor"); }
+    const pts = shapeToPoints(json);
+    return pts;
+  }
+
+  function fitStage(pts){
+    if(!app) return;
+    const xs = pts.map(p=>p[0]);
+    const ys = pts.map(p=>p[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const pad = 20;
+    const w = app.renderer.width, h = app.renderer.height;
+    const spanX = Math.max(1e-6, maxX - minX);
+    const spanY = Math.max(1e-6, maxY - minY);
+    const s = Math.min((w - 2*pad)/spanX, (h - 2*pad)/spanY);
+    app.stage.scale.set(s, s);
+    app.stage.position.set(pad - minX * s, pad - minY * s);
+  }
+
+  async function renderGPU(points){
+    await initPixi();
+    const pts = finitePoints(points);
+    if(pts.length === 0) return;
+    app.stage.removeChildren();
+    pointContainer = new PIXI.Container();
+    app.stage.addChild(pointContainer);
+
+    // DOT texture
+    const g = new PIXI.Graphics();
+    g.circle(0,0,1.8).fill(0xFFFFFF);
+    const dotTex = app.renderer.generateTexture(g);
+
+    // Add sprites
+    for(const [x,y] of pts){
+      const spr = new PIXI.Sprite(dotTex);
+      spr.x = x; spr.y = y;
+      pointContainer.addChild(spr);
+    }
+    lastPts = pts;
+    fitStage(pts);
+  }
+
+  function cleanSeq(raw){
+    if(!raw) return "";
+    let s = raw.replace(/[^A-Za-z]/g, "").toUpperCase().replace(/T/g,"U");
+    s = s.replace(/[^ACGUN]/g, "");
+    return s;
+  }
+  function detectDotBracket(lines){
+    for(const line of lines){
+      const l=line.trim();
+      if(l && /^[\.\(\)\[\]\{\}]+$/.test(l)) return l;
+    }
+    return null;
+  }
+  function parseInput(txt){
+    if(!txt) throw new Error("Entrada vazia");
+    const lines = txt.split(/\r?\n/).filter(l => l.trim().length && !/^>/.test(l.trim()));
+    if(/^\s*[\{\[]/.test(txt)) throw new Error("Use o modo simples: SEQ + DOT-BRACKET");
+    const struct = detectDotBracket(lines) || null;
+    const seqRaw = lines.filter(l => !(l.trim() && /^[\.\(\)\[\]\{\}]+$/.test(l.trim()))).join("");
+    const seq = cleanSeq(seqRaw);
+    if(!seq) throw new Error("Campo 'seq' vazio após limpeza");
+    if(struct && struct.length !== seq.length) return {seq, struct:null};
+    return {seq, struct};
+  }
+
+  // Toggle overlay visibility without changing layout
+  function setVisible(on){
+    visible = !!on;
+    const el = ensureLayer();
+    el.style.display = visible ? "block" : "none";
+  }
+  // Keyboard toggle (doesn't change layout; optional discoverability)
+  document.addEventListener("keydown", function(e){
+    if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    if(e.key === 'g' || e.key === 'G'){
+      setVisible(!visible);
+    }
+  });
+
+  // Hook into the existing "Submit" (Add Molecule) button to compute in parallel
+  document.addEventListener("DOMContentLoaded", function(){
+    const submit = el("Submit");
+    if(submit){
+      submit.addEventListener("click", async function(){
+        try{
+          const txt = (el("Input")?.value || el("JSONInput")?.value || el("ColorInput")?.value || "").trim();
+          const {seq, struct} = parseInput(txt);
+          const pts = await fetchPositions({seq, struct, chunk_size: 3000});
+          await renderGPU(pts);
+          setVisible(true); // auto-show overlay after success
+        }catch(err){
+          // silent: we não queremos modificar UX; apenas log
+          console.warn("[GPU] falha opcional:", err.message);
+        }
+      }, {capture:false});
+    }
+    // Recentering when "Center molecules" is clicked (if exists)
+    const centerBtn = Array.from(document.querySelectorAll("button.btn.btn-default"))
+      .find(b => b.querySelector && b.querySelector(".glyphicon-screenshot"));
+    if(centerBtn){
+      centerBtn.addEventListener("click", function(){
+        if(lastPts) fitStage(lastPts);
+      });
+    }
+  });
+})();
+</script><script>
+(function(){
+  // === Minimal WebGL2-based RNA 2D layout (springs + damping) ===
+  // Preserves UI layout: draws on #gpu-layer; toggled on Submit; no extra UI.
+  let gl = null;
+  let canvas = null;
+  let N = 0, texSize = 0, texW = 0, texH = 0;
+  let posTexA, posTexB, velTexA, velTexB, pairTex, idxTex;
+  let fb, progUpdate, progRender;
+  let quadVAO, ptsVAO;
+  let u = {};
+  let running = false;
+  let lastTime = 0;
+  let show = false;
+
+  function el(id){ return document.getElementById(id); }
+  function setVisible(on){
+    show = !!on;
+    const layer = el("gpu-layer");
+    if(layer){
+      layer.style.display = show ? "block" : "none";
+    }
+  }
+
+  function createCanvas(){
+    const layer = el("gpu-layer");
+    if(!layer) throw new Error("#gpu-layer não encontrado");
+    if(!canvas){
+      canvas = document.createElement("canvas");
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
+      canvas.style.display = "block";
+      canvas.style.pointerEvents = "none";
+      layer.innerHTML = "";
+      layer.appendChild(canvas);
+    }
+    // Match client rect
+    const r = layer.getBoundingClientRect();
+    const w = Math.max(2, r.width|0);
+    const h = Math.max(2, r.height|0);
+    if(canvas.width !== w || canvas.height !== h){
+      canvas.width = w; canvas.height = h;
+      if(gl) gl.viewport(0,0,w,h);
+    }
+  }
+
+  function initGL(){
+    if(gl) return;
+    createCanvas();
+    gl = canvas.getContext("webgl2", {antialias: false, premultipliedAlpha: false});
+    if(!gl){ throw new Error("WebGL2 não suportado"); }
+    gl.clearColor(0,0,0,0);
+  }
+
+  function compile(gl, type, src){
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){
+      throw new Error("Shader error: " + gl.getShaderInfoLog(sh));
+    }
+    return sh;
+  }
+  function link(gl, vsSrc, fsSrc){
+    const vs = compile(gl, gl.VERTEX_SHADER, vsSrc);
+    const fs = compile(gl, gl.FRAGMENT_SHADER, fsSrc);
+    const p = gl.createProgram();
+    gl.attachShader(p, vs); gl.attachShader(p, fs);
+    gl.linkProgram(p);
+    if(!gl.getProgramParameter(p, gl.LINK_STATUS)){
+      throw new Error("Program link error: " + gl.getProgramInfoLog(p));
+    }
+    return p;
+  }
+
+  const VS_QUAD = `#version 300 es
+  const vec2 POS[3] = vec2[3](vec2(-1., -1.), vec2(3., -1.), vec2(-1., 3.));
+  void main(){
+    gl_Position = vec4(POS[gl_VertexID], 0., 1.);
+  }`;
+
+  // Fragment shader to update velocity and position (ping-pong).
+  // Forces: springs to i-1, i+1 (backbone), and to paired index (if any).
+  // No full N^2 repulsion (kept lightweight); optional mild centering.
+  const FS_UPDATE = `#version 300 es
+  precision highp float;
+  uniform sampler2D uPos;
+  uniform sampler2D uVel;
+  uniform sampler2D uPair;
+  uniform sampler2D uIndex;
+  uniform float uK_backbone;
+  uniform float uK_pair;
+  uniform float uRest_backbone;
+  uniform float uRest_pair;
+  uniform float uDamp;
+  uniform float uDt;
+  uniform vec2  uTexSize;  // texW, texH
+  out vec4 fragColor; // xy new pos, zw new vel
+
+  // fetch pos/vel by 1D index -> tex coord
+  vec2 idx2uv(float idx){
+    float w = uTexSize.x, h = uTexSize.y;
+    float x = mod(idx, w);
+    float y = floor(idx / w);
+    return (vec2(x + 0.5, y + 0.5) / vec2(w, h));
+  }
+  vec2 fetchPos(float idx){
+    vec2 uv = idx2uv(idx);
+    return texture(uPos, uv).xy;
+  }
+  vec2 fetchVel(float idx){
+    vec2 uv = idx2uv(idx);
+    return texture(uVel, uv).xy;
+  }
+  float fetchPair(float idx){
+    vec2 uv = idx2uv(idx);
+    return texture(uPair, uv).x; // partner index or -1.0
+  }
+
+  void main(){
+    // Determine current node index from gl_FragCoord
+    vec2 frag = gl_FragCoord.xy - vec2(0.5);
+    float w = uTexSize.x, h = uTexSize.y;
+    float idx = frag.x + frag.y * w;
+    // Read current state
+    vec2 p = texture(uPos, (gl_FragCoord.xy / vec2(w,h))).xy;
+    vec2 v = texture(uVel, (gl_FragCoord.xy / vec2(w,h))).xy;
+
+    // Backbone neighbors
+    float iPrev = idx - 1.0;
+    float iNext = idx + 1.0;
+    // valid range check
+    // We'll rely on uIndex texture to know valid max index (encoded in .r of pixel (0,0))
+    float nTot = texture(uIndex, vec2(0.5/uTexSize.x, 0.5/uTexSize.y)).r;
+
+    vec2 force = vec2(0.0);
+    // Spring to prev
+    if(iPrev >= 0.0){
+      vec2 pp = fetchPos(iPrev);
+      vec2 d = pp - p;
+      float L = length(d) + 1e-6;
+      force += uK_backbone * (L - uRest_backbone) * (d / L);
+    }
+    // Spring to next
+    if(iNext < nTot){
+      vec2 pn = fetchPos(iNext);
+      vec2 d = pn - p;
+      float L = length(d) + 1e-6;
+      force += uK_backbone * (L - uRest_backbone) * (d / L);
+    }
+    // Spring to pair
+    float j = fetchPair(idx);
+    if(j >= 0.0){
+      vec2 pj = fetchPos(j);
+      vec2 d = pj - p;
+      float L = length(d) + 1e-6;
+      force += uK_pair * (L - uRest_pair) * (d / L);
+    }
+    // Mild centering (prevents drift)
+    force += -0.002 * p;
+
+    // Integrate (semi-implicit Euler)
+    vec2 a = force; // mass = 1
+    v = (v + a * uDt) * (1.0 - uDamp);
+    p = p + v * uDt;
+
+    fragColor = vec4(p, v);
+  }`;
+
+  const VS_RENDER = `#version 300 es
+  precision highp float;
+  layout(location=0) in vec2 aUv;
+  uniform sampler2D uPos;
+  uniform vec2 uTexSize;
+  uniform vec2 uViewport;
+  uniform float uPointSize;
+  void main(){
+    vec2 pos = texture(uPos, aUv).xy;
+    // NDC convert: pos already in layout space; assume we'll scale in JS with transform uniform (not needed here)
+    // We map from layout space [-1..1] roughly; better: prefit in JS by scaling to viewport
+    // We'll do fitting by a transform uniform in the future; for now let pos be in pixels: we will pass fitted coords by overwriting uPos texture each frame.
+    // Here we assume pos is already in world space; we convert to NDC by dividing by half viewport.
+    vec2 ndc = (pos / (0.5 * uViewport)) - 1.0;
+    gl_Position = vec4(ndc, 0.0, 1.0);
+    gl_PointSize = uPointSize;
+  }`;
+
+  const FS_RENDER = `#version 300 es
+  precision highp float;
+  out vec4 fragColor;
+  void main(){
+    vec2 c = gl_PointCoord * 2.0 - 1.0;
+    float r = dot(c,c);
+    float alpha = smoothstep(1.0, 0.95, 1.0 - r);
+    fragColor = vec4(1.0, 1.0, 1.0, alpha);
+  }`;
+
+  function makeProgramUpdate(){
+    progUpdate = link(gl, VS_QUAD, FS_UPDATE);
+    u.uPos = gl.getUniformLocation(progUpdate, "uPos");
+    u.uVel = gl.getUniformLocation(progUpdate, "uVel");
+    u.uPair = gl.getUniformLocation(progUpdate, "uPair");
+    u.uIndex = gl.getUniformLocation(progUpdate, "uIndex");
+    u.uK_backbone = gl.getUniformLocation(progUpdate, "uK_backbone");
+    u.uK_pair = gl.getUniformLocation(progUpdate, "uK_pair");
+    u.uRest_backbone = gl.getUniformLocation(progUpdate, "uRest_backbone");
+    u.uRest_pair = gl.getUniformLocation(progUpdate, "uRest_pair");
+    u.uDamp = gl.getUniformLocation(progUpdate, "uDamp");
+    u.uDt = gl.getUniformLocation(progUpdate, "uDt");
+    u.uTexSize = gl.getUniformLocation(progUpdate, "uTexSize");
+    // fullscreen tri has no attribs; we'll use gl_VertexID
+  }
+  function makeProgramRender(){
+    progRender = link(gl, `#version 300 es
+      layout(location=0) in vec2 aUv;
+      uniform sampler2D uPos;
+      uniform vec2 uTexSize;
+      uniform vec2 uViewport;
+      uniform float uPointSize;
+      void main(){
+        vec2 pos = texture(uPos, aUv).xy;
+        vec2 ndc = vec2((pos.x / (0.5*uViewport.x)) - 1.0,
+                        (pos.y / (0.5*uViewport.y)) - 1.0);
+        gl_Position = vec4(ndc, 0.0, 1.0);
+        gl_PointSize = uPointSize;
+      }`,
+      FS_RENDER
+    );
+  }
+
+  function createTex(w,h,filter=gl.NEAREST){
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, w, h, 0, gl.RG, gl.FLOAT, null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    return t;
+  }
+  function createTexR32F(w,h){
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, w, h, 0, gl.RED, gl.FLOAT, null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    return t;
+  }
+  function uploadTexRG(t, w, h, data){
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RG, gl.FLOAT, data);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  }
+  function uploadTexR(t, w, h, data){
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RED, gl.FLOAT, data);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  }
+
+  function nextPow2(n){
+    let p=1; while(p*p<n) p<<=1; return p;
+  }
+  function initTextures(n){
+    N = n;
+    texSize = nextPow2(N);
+    texW = texSize; texH = texSize;
+    // position/velocity RG32F ping-pong
+    posTexA = createTex(texW, texH);
+    posTexB = createTex(texW, texH);
+    velTexA = createTex(texW, texH);
+    velTexB = createTex(texW, texH);
+    // pair mapping and index info
+    pairTex = createTexR32F(texW, texH);
+    idxTex  = createTexR32F(texW, texH);
+
+    // init buffers
+    const pos = new Float32Array(texW*texH*2);
+    const vel = new Float32Array(texW*texH*2);
+    for(let i=0;i<N;i++){
+      const a = 2*Math.PI*i/N;
+      pos[2*i+0] = Math.cos(a)*150.0;
+      pos[2*i+1] = Math.sin(a)*150.0;
+      vel[2*i+0] = 0.0; vel[2*i+1] = 0.0;
+    }
+    uploadTexRG(posTexA, texW, texH, pos);
+    uploadTexRG(velTexA, texW, texH, vel);
+    uploadTexRG(posTexB, texW, texH, pos);
+    uploadTexRG(velTexB, texW, texH, vel);
+
+    // index texture: encode N in texel (0,0).r
+    const idx = new Float32Array(texW*texH);
+    idx[0] = N;
+    uploadTexR(idxTex, texW, texH, idx);
+  }
+
+  function uploadPairs(pairs){ // pairs: array length N, each value partner index or -1
+    const arr = new Float32Array(texW*texH);
+    for(let i=0;i<N;i++) arr[i] = pairs[i] ?? -1;
+    uploadTexR(pairTex, texW, texH, arr);
+  }
+
+  function makeVAOs(){
+    // Fullscreen "big triangle" -> no VAO needed, but create dummy
+    quadVAO = gl.createVertexArray();
+
+    // Points: use UVs as attribute mapping each instance to tex coord
+    const uvs = new Float32Array(N*2);
+    for(let i=0;i<N;i++){
+      const x = ( (i % texW) + 0.5 ) / texW;
+      const y = ( Math.floor(i/texW) + 0.5 ) / texH;
+      uvs[2*i] = x; uvs[2*i+1] = y;
+    }
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, uvs, gl.STATIC_DRAW);
+    ptsVAO = gl.createVertexArray();
+    gl.bindVertexArray(ptsVAO);
+    const loc = 0;
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+  }
+
+  function stepSimulation(dt){
+    // Write into B from A, then swap
+    gl.useProgram(progUpdate);
+    gl.bindVertexArray(quadVAO);
+    // Bind FBO
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+
+    // Attach color buffers 0: new pos, 1: new vel
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, posTexB, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, velTexB, 0);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+
+    // Bind inputs
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posTexA);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, velTexA);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, pairTex);
+    gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, idxTex);
+    gl.uniform1i(u.uPos, 0);
+    gl.uniform1i(u.uVel, 1);
+    gl.uniform1i(u.uPair, 2);
+    gl.uniform1i(u.uIndex,3);
+
+    gl.uniform1f(u.uK_backbone, 0.05);
+    gl.uniform1f(u.uK_pair,     0.12);
+    gl.uniform1f(u.uRest_backbone, 12.0);
+    gl.uniform1f(u.uRest_pair,     3.5);
+    gl.uniform1f(u.uDamp, 0.04);
+    gl.uniform1f(u.uDt, dt);
+    gl.uniform2f(u.uTexSize, texW, texH);
+
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    // Swap ping-pong
+    let tmp;
+    tmp = posTexA; posTexA = posTexB; posTexB = tmp;
+    tmp = velTexA; velTexA = velTexB; velTexB = tmp;
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  function renderPoints(){
+    gl.useProgram(progRender);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posTexA);
+    const uPos = gl.getUniformLocation(progRender, "uPos");
+    const uTexSize = gl.getUniformLocation(progRender, "uTexSize");
+    const uViewport = gl.getUniformLocation(progRender, "uViewport");
+    const uPointSize = gl.getUniformLocation(progRender, "uPointSize");
+    gl.uniform1i(uPos, 0);
+    gl.uniform2f(uTexSize, texW, texH);
+    gl.uniform2f(uViewport, canvas.width, canvas.height);
+    gl.uniform1f(uPointSize, 3.0);
+
+    gl.bindVertexArray(ptsVAO);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.drawArrays(gl.POINTS, 0, N);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(null);
+  }
+
+  function loop(t){
+    if(!running){ return; }
+    if(!lastTime) lastTime = t;
+    const dt = Math.min(0.05, (t - lastTime) / 1000);
+    lastTime = t;
+
+    createCanvas(); // ensure viewport sizing follows layout
+    gl.viewport(0,0,canvas.width, canvas.height);
+    for(let i=0;i<8;i++) stepSimulation(dt*0.5); // sub-steps for stability
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    renderPoints();
+    requestAnimationFrame(loop);
+  }
+
+  function parseBrackets(dot){
+    // returns partner array of size N, with -1 for unpaired
+    const stack = { "(": [], "[": [], "{": [] };
+    const pair = new Array(dot.length).fill(-1);
+    const match = { ")":"(", "]":"[", "}":"{" };
+    for(let i=0;i<dot.length;i++){
+      const c = dot[i];
+      if(c==="("||c==="["||c==="{"){ stack[c].push(i); }
+      else if(c===")"||c==="]"||c==="}"){
+        const open = match[c];
+        const j = stack[open].pop();
+        if(j!==undefined) { pair[i]=j; pair[j]=i; }
+      }
+    }
+    return pair;
+  }
+
+  function cleanSeq(raw){
+    if(!raw) return "";
+    let s = raw.replace(/[^A-Za-z]/g, "").toUpperCase().replace(/T/g,"U");
+    s = s.replace(/[^ACGUN]/g, "");
+    return s;
+  }
+  function detectDotBracket(lines){
+    for(const line of lines){
+      const l=line.trim();
+      if(l && /^[\.\(\)\[\]\{\}]+$/.test(l)) return l;
+    }
+    return null;
+  }
+  function parseInput(txt){
+    if(!txt) throw new Error("Entrada vazia");
+    const lines = txt.split(/\r?\n/).filter(l => l.trim().length && !/^>/.test(l.trim()));
+    const struct = detectDotBracket(lines) || null;
+    const seqRaw = lines.filter(l => !(l.trim() && /^[\.\(\)\[\]\{\}]+$/.test(l.trim()))).join("");
+    const seq = cleanSeq(seqRaw);
+    if(!seq) throw new Error("Campo 'seq' vazio após limpeza");
+    if(struct && struct.length !== seq.length) return {seq, struct:null};
+    return {seq, struct};
+  }
+
+  async function startSimulationFromModal(){
+    try{
+      const txt = (el("Input")?.value || el("JSONInput")?.value || el("ColorInput")?.value || "").trim();
+      const {seq, struct} = parseInput(txt);
+      const dot = struct;
+      if(!dot){ console.warn("[GPU-Phys] dot-bracket ausente; abortando sim."); return; }
+      initGL();
+      // Build partner mapping
+      const pair = parseBrackets(dot);
+      N = dot.length;
+      // Init textures & data
+      initTextures(N);
+      uploadPairs(pair);
+      if(!fb){ fb = gl.createFramebuffer(); }
+      if(!progUpdate){ makeProgramUpdate(); }
+      if(!progRender){ makeProgramRender(); }
+      if(!ptsVAO){ makeVAOs(); }
+      running = true;
+      setVisible(true);
+      lastTime = 0;
+      requestAnimationFrame(loop);
+    }catch(e){
+      console.warn("[GPU-Phys] erro:", e.message);
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function(){
+    const submit = el("Submit");
+    if(submit){
+      submit.addEventListener("click", function(){
+        // Kick off the GPU physics layout (in parallel to the normal SVG flow)
+        startSimulationFromModal();
+      }, {capture:false});
+    }
+    // Keyboard 'G' toggles overlay visibility
+    document.addEventListener("keydown", function(e){
+      if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+      if(e.key==='g'||e.key==='G'){ setVisible(!show); }
+    });
+  });
+})();
+</script></body>
+</html>
